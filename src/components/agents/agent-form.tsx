@@ -1,34 +1,6 @@
 "use client";
-
-import { useState, useRef, useCallback } from "react";
-import {
-  ChevronDown,
-  Upload,
-  X,
-  FileText,
-  Phone,
-  AlertCircle,
-} from "lucide-react";
-
-import { Skeleton } from "@/components/ui/skeleton";
-
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PhoneInput } from "@/components/ui/phone-input";
-import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldTitle,
-} from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -42,19 +14,47 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useAgentForm } from "@/hooks/useAgentForm";
-
-interface UploadedFile {
-  name: string;
-  size: number;
-  file: File;
-}
+import { useAgentSave } from "@/hooks/useAgentSave";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { useTestCall } from "@/hooks/useTestCall";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { useToast } from "@/hooks/useToast";
+import type { AgentData } from "@/types/agent";
+import {
+  AlertCircle,
+  Check,
+  ChevronDown,
+  Clock,
+  FileText,
+  Loader2,
+  Phone,
+  Upload,
+  X,
+} from "lucide-react";
+import { useRef, useState, useEffect } from "react";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
@@ -114,7 +114,7 @@ function CollapsibleSection({
 }
 
 export interface AgentFormInitialData {
-  agentName?: string;
+  name?: string;
   description?: string;
   callType?: string;
   language?: string;
@@ -134,7 +134,7 @@ interface AgentFormProps {
 
 export function AgentForm({ mode, initialData }: AgentFormProps) {
   // Form state — initialized from initialData when provided
-  const [agentName, setAgentName] = useState(initialData?.agentName ?? "");
+  const [agentName, setAgentName] = useState(initialData?.name ?? "");
   const [callType, setCallType] = useState(initialData?.callType ?? "");
   const [language, setLanguage] = useState(initialData?.language ?? "");
   const [voice, setVoice] = useState(initialData?.voice ?? "");
@@ -154,9 +154,19 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
     initialData?.serviceDescription ?? "",
   );
 
-  // Reference Data
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
+  // Reference Data - Using custom hook
+  const {
+    uploadedFiles,
+    isDragging,
+    handleFiles,
+    removeFile,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    getAttachmentIds,
+    acceptedTypes,
+  } = useFileUpload();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Test Call
@@ -164,6 +174,9 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
   const [testLastName, setTestLastName] = useState("");
   const [testGender, setTestGender] = useState("");
   const [testPhone, setTestPhone] = useState("");
+  const [allowHangUp, setAllowHangUp] = useState(false);
+  const [allowCallback, setAllowCallback] = useState(false);
+  const [liveTransfer, setLiveTransfer] = useState(false);
 
   //fetch dropdown options for language, voice, prompt, and model
   const {
@@ -174,7 +187,65 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
     dropdownsLoading,
     dropdownsError,
   } = useAgentForm();
-  // Badge counts for required fields
+
+  const { agentId, saveAgent, isSaving } = useAgentSave();
+  const { isTesting, startTestCall } = useTestCall();
+  const toast = useToast();
+
+  // Track unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [initialFormState, setInitialFormState] = useState<string>("");
+
+  // Track when form data changes
+  useEffect(() => {
+    const currentState = JSON.stringify({
+      agentName,
+      description,
+      callType,
+      language,
+      voice,
+      prompt,
+      model,
+      latency,
+      speed,
+      callScript,
+      serviceDescription,
+      allowHangUp,
+      allowCallback,
+      liveTransfer,
+      attachments: getAttachmentIds(),
+    });
+
+    if (initialFormState === "") {
+      // Set initial state on first render
+      setInitialFormState(currentState);
+    } else {
+      // Compare current state with initial state
+      setHasUnsavedChanges(currentState !== initialFormState);
+    }
+  }, [
+    agentName,
+    description,
+    callType,
+    language,
+    voice,
+    prompt,
+    model,
+    latency,
+    speed,
+    callScript,
+    serviceDescription,
+    allowHangUp,
+    allowCallback,
+    liveTransfer,
+    uploadedFiles,
+    getAttachmentIds,
+    initialFormState,
+  ]);
+
+  // Use the unsaved changes hook
+  useUnsavedChanges(hasUnsavedChanges);
+
   const basicSettingsMissing = [
     agentName,
     callType,
@@ -184,52 +255,111 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
     model,
   ].filter((v) => !v).length;
 
-  // File upload handlers
-  const ACCEPTED_TYPES = [
-    ".pdf",
-    ".doc",
-    ".docx",
-    ".txt",
-    ".csv",
-    ".xlsx",
-    ".xls",
-  ];
+  // Helper: Validate required fields
+  const validateRequiredFields = () => {
+    if (!agentName || !callType || !language || !voice || !prompt || !model) {
+      return false;
+    }
+    return true;
+  };
 
-  const handleFiles = useCallback(
-    (files: FileList | null) => {
-      if (!files) return;
-      const newFiles: UploadedFile[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const ext = "." + file.name.split(".").pop()?.toLowerCase();
-        if (ACCEPTED_TYPES.includes(ext)) {
-          newFiles.push({ name: file.name, size: file.size, file });
-        }
+  // Helper: Build agent data object
+  const buildAgentData = (): AgentData => {
+    const attachmentIds = getAttachmentIds();
+
+    return {
+      name: agentName,
+      description,
+      callType,
+      language,
+      voice,
+      prompt,
+      model,
+      latency: latency[0],
+      speed: speed[0],
+      callScript,
+      serviceDescription,
+      attachments: attachmentIds,
+      tools: {
+        allowHangUp,
+        allowCallback,
+        liveTransfer,
+      },
+    };
+  };
+
+  // Helper: Reset unsaved changes tracking
+  const resetUnsavedChanges = () => {
+    const attachmentIds = getAttachmentIds();
+    const newState = JSON.stringify({
+      agentName,
+      description,
+      callType,
+      language,
+      voice,
+      prompt,
+      model,
+      latency,
+      speed,
+      callScript,
+      serviceDescription,
+      allowHangUp,
+      allowCallback,
+      liveTransfer,
+      attachments: attachmentIds,
+    });
+    setInitialFormState(newState);
+    setHasUnsavedChanges(false);
+  };
+
+  // Save handler
+  const handleSave = async () => {
+    // Validate required fields
+    if (!validateRequiredFields()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    const agentData = buildAgentData();
+    const savedAgent = await saveAgent(agentData);
+
+    // Reset unsaved changes flag after successful save
+    if (savedAgent) {
+      resetUnsavedChanges();
+    }
+  };
+
+  // Test Call handler
+  const handleTestCall = async () => {
+    // Validate phone number
+    if (!testPhone) {
+      toast.error("Please enter a phone number");
+      return;
+    }
+
+    // If agent hasn't been saved yet, save it first
+    let currentAgentId = agentId;
+    if (!currentAgentId) {
+      // Validate required fields
+      if (!validateRequiredFields()) {
+        toast.error("Please fill in all required fields before testing");
+        return;
       }
-      setUploadedFiles((prev) => [...prev, ...newFiles]);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
 
-  const removeFile = (index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
+      // Save the agent first
+      const agentData = buildAgentData();
+      const savedAgent = await saveAgent(agentData);
+      if (!savedAgent) return;
+      currentAgentId = savedAgent.id;
+    }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFiles(e.dataTransfer.files);
+    // Start the test call
+    await startTestCall(currentAgentId, {
+      firstName: testFirstName,
+      lastName: testLastName,
+      gender: testGender,
+      phoneNumber: testPhone,
+    });
   };
 
   const heading = mode === "create" ? "Create Agent" : "Edit Agent";
@@ -237,10 +367,7 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{heading}</h1>
-        <Button>{saveLabel}</Button>
-      </div>
+      <h1 className="text-3xl font-bold">{heading}</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column — Collapsible Sections */}
@@ -485,7 +612,7 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                   type="file"
                   className="hidden"
                   multiple
-                  accept={ACCEPTED_TYPES.join(",")}
+                  accept={acceptedTypes.join(",")}
                   onChange={(e) => handleFiles(e.target.files)}
                 />
                 <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
@@ -512,21 +639,68 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                       key={i}
                       className="flex items-center justify-between rounded-md border px-3 py-2"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="text-sm truncate">{f.name}</span>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {formatFileSize(f.size)}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm truncate">{f.name}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {formatFileSize(f.size)}
+                            </span>
+                          </div>
+
+                          {/* Progress bar for uploading status */}
+                          {f.status === "uploading" && (
+                            <div className="w-full h-1 bg-gray-200 rounded-full mt-1">
+                              <div
+                                className="h-1 bg-primary rounded-full transition-all duration-300"
+                                style={{ width: `${f.progress || 0}%` }}
+                              />
+                            </div>
+                          )}
+
+                          {/* Success bar */}
+                          {f.status === "completed" && (
+                            <div className="w-full h-1 bg-green-500 rounded-full mt-1" />
+                          )}
+
+                          {/* Error bar + message */}
+                          {f.status === "error" && (
+                            <>
+                              <div className="w-full h-1 bg-red-500 rounded-full mt-1" />
+                              <p className="text-xs text-destructive mt-1">
+                                {f.error}
+                              </p>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0"
-                        onClick={() => removeFile(i)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+
+                      {/* Status Icons */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {f.status === "pending" && (
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        {f.status === "uploading" && (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        )}
+                        {f.status === "completed" && (
+                          <Check className="h-4 w-4 text-green-600" />
+                        )}
+                        {f.status === "error" && (
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        )}
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => removeFile(i)}
+                          disabled={f.status === "uploading"}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -554,7 +728,11 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                       call
                     </FieldDescription>
                   </FieldContent>
-                  <Switch id="switch-hangup" />
+                  <Switch
+                    id="switch-hangup"
+                    checked={allowHangUp}
+                    onCheckedChange={setAllowHangUp}
+                  />
                 </Field>
               </FieldLabel>
               <FieldLabel htmlFor="switch-callback">
@@ -566,7 +744,11 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                       callbacks
                     </FieldDescription>
                   </FieldContent>
-                  <Switch id="switch-callback" />
+                  <Switch
+                    id="switch-callback"
+                    checked={allowCallback}
+                    onCheckedChange={setAllowCallback}
+                  />
                 </Field>
               </FieldLabel>
               <FieldLabel htmlFor="switch-transfer">
@@ -577,7 +759,11 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                       Select if you want to transfer the call to a human agent
                     </FieldDescription>
                   </FieldContent>
-                  <Switch id="switch-transfer" />
+                  <Switch
+                    id="switch-transfer"
+                    checked={liveTransfer}
+                    onCheckedChange={setLiveTransfer}
+                  />
                 </Field>
               </FieldLabel>
             </FieldGroup>
@@ -646,9 +832,22 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                     />
                   </div>
 
-                  <Button className="w-full">
-                    <Phone className="mr-2 h-4 w-4" />
-                    Start Test Call
+                  <Button
+                    className="w-full"
+                    onClick={handleTestCall}
+                    disabled={isTesting || isSaving}
+                  >
+                    {isTesting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Initiating Call...
+                      </>
+                    ) : (
+                      <>
+                        <Phone className="mr-2 h-4 w-4" />
+                        Start Test Call
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -659,8 +858,17 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
 
       {/* Sticky bottom save bar */}
       <div className="sticky bottom-0 -mx-6 -mb-6 border-t bg-background px-6 py-4">
-        <div className="flex justify-end">
-          <Button>{saveLabel}</Button>
+        <div className="flex justify-between items-center">
+          {hasUnsavedChanges && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <AlertCircle className="h-4 w-4" />
+              <span>You have unsaved changes</span>
+            </div>
+          )}
+          {!hasUnsavedChanges && <div />}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Saving..." : saveLabel}
+          </Button>
         </div>
       </div>
     </div>

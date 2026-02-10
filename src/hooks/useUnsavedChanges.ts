@@ -1,7 +1,6 @@
 import { useEffect, useCallback } from "react";
 
 export function useUnsavedChanges(hasUnsavedChanges: boolean) {
-  // Warn before closing/refreshing the browser tab
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
