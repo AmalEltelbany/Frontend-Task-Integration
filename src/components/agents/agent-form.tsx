@@ -7,7 +7,11 @@ import {
   X,
   FileText,
   Phone,
+  AlertCircle,
 } from "lucide-react";
+
+import { Skeleton } from "@/components/ui/skeleton";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -44,6 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAgentForm } from "@/hooks/useAgentForm";
 
 interface UploadedFile {
   name: string;
@@ -88,9 +93,7 @@ function CollapsibleSection({
               </div>
               <div className="flex items-center gap-2">
                 {badge !== undefined && badge > 0 && (
-                  <Badge variant="destructive">
-                    {badge} required
-                  </Badge>
+                  <Badge variant="destructive">{badge} required</Badge>
                 )}
                 <ChevronDown
                   className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
@@ -139,13 +142,17 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
   const [model, setModel] = useState(initialData?.model ?? "");
   const [latency, setLatency] = useState([initialData?.latency ?? 0.5]);
   const [speed, setSpeed] = useState([initialData?.speed ?? 110]);
-  const [description, setDescription] = useState(initialData?.description ?? "");
+  const [description, setDescription] = useState(
+    initialData?.description ?? "",
+  );
 
   // Call Script
   const [callScript, setCallScript] = useState(initialData?.callScript ?? "");
 
   // Service/Product Description
-  const [serviceDescription, setServiceDescription] = useState(initialData?.serviceDescription ?? "");
+  const [serviceDescription, setServiceDescription] = useState(
+    initialData?.serviceDescription ?? "",
+  );
 
   // Reference Data
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -158,10 +165,24 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
   const [testGender, setTestGender] = useState("");
   const [testPhone, setTestPhone] = useState("");
 
+  //fetch dropdown options for language, voice, prompt, and model
+  const {
+    languages,
+    voices,
+    prompts,
+    models,
+    dropdownsLoading,
+    dropdownsError,
+  } = useAgentForm();
   // Badge counts for required fields
-  const basicSettingsMissing = [agentName, callType, language, voice, prompt, model].filter(
-    (v) => !v
-  ).length;
+  const basicSettingsMissing = [
+    agentName,
+    callType,
+    language,
+    voice,
+    prompt,
+    model,
+  ].filter((v) => !v).length;
 
   // File upload handlers
   const ACCEPTED_TYPES = [
@@ -188,7 +209,7 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
       setUploadedFiles((prev) => [...prev, ...newFiles]);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [],
   );
 
   const removeFile = (index: number) => {
@@ -231,6 +252,12 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
             badge={basicSettingsMissing}
             defaultOpen
           >
+            {dropdownsError && (
+              <div className="mb-4 flex items-center gap-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{dropdownsError}</span>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="agent-name">
@@ -263,8 +290,12 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                     <SelectValue placeholder="Select call type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="inbound">Inbound (Receive Calls)</SelectItem>
-                    <SelectItem value="outbound">Outbound (Make Calls)</SelectItem>
+                    <SelectItem value="inbound">
+                      Inbound (Receive Calls)
+                    </SelectItem>
+                    <SelectItem value="outbound">
+                      Outbound (Make Calls)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -273,69 +304,91 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                 <Label>
                   Language <span className="text-destructive">*</span>
                 </Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="ar">Arabic</SelectItem>
-                    <SelectItem value="fr">French</SelectItem>
-                    <SelectItem value="es">Spanish</SelectItem>
-                  </SelectContent>
-                </Select>
+                {dropdownsLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={language} onValueChange={setLanguage}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languages.map((lang) => (
+                        <SelectItem key={lang.id} value={lang.id}>
+                          {lang.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>
                   Voice <span className="text-destructive">*</span>
                 </Label>
-                <Select value={voice} onValueChange={setVoice}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select voice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="alloy">Alloy</SelectItem>
-                    <SelectItem value="echo">Echo</SelectItem>
-                    <SelectItem value="fable">Fable</SelectItem>
-                    <SelectItem value="onyx">Onyx</SelectItem>
-                    <SelectItem value="nova">Nova</SelectItem>
-                    <SelectItem value="shimmer">Shimmer</SelectItem>
-                  </SelectContent>
-                </Select>
+                {dropdownsLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={voice} onValueChange={setVoice}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select voice" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {voices.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          <span className="flex items-center gap-2">
+                            {v.name}
+                            <Badge variant="secondary">{v.tag}</Badge>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>
                   Prompt <span className="text-destructive">*</span>
                 </Label>
-                <Select value={prompt} onValueChange={setPrompt}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select prompt" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default Prompt</SelectItem>
-                    <SelectItem value="sales">Sales Prompt</SelectItem>
-                    <SelectItem value="support">Support Prompt</SelectItem>
-                    <SelectItem value="custom">Custom Prompt</SelectItem>
-                  </SelectContent>
-                </Select>
+                {dropdownsLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={prompt} onValueChange={setPrompt}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select prompt" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {prompts.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>
                   Model <span className="text-destructive">*</span>
                 </Label>
-                <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pro">Pro</SelectItem>
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="flex">Flex</SelectItem>
-                  </SelectContent>
-                </Select>
+                {dropdownsLoading ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {models.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -369,7 +422,6 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                   </div>
                 </div>
               </div>
-
             </div>
           </CollapsibleSection>
 
@@ -498,7 +550,8 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                   <FieldContent>
                     <FieldTitle>Allow hang up</FieldTitle>
                     <FieldDescription>
-                      Select if you would like to allow the agent to hang up the call
+                      Select if you would like to allow the agent to hang up the
+                      call
                     </FieldDescription>
                   </FieldContent>
                   <Switch id="switch-hangup" />
@@ -509,7 +562,8 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
                   <FieldContent>
                     <FieldTitle>Allow callback</FieldTitle>
                     <FieldDescription>
-                      Select if you would like to allow the agent to make callbacks
+                      Select if you would like to allow the agent to make
+                      callbacks
                     </FieldDescription>
                   </FieldContent>
                   <Switch id="switch-callback" />
@@ -528,7 +582,6 @@ export function AgentForm({ mode, initialData }: AgentFormProps) {
               </FieldLabel>
             </FieldGroup>
           </CollapsibleSection>
-
         </div>
 
         {/* Right Column — Sticky Test Call Card */}
