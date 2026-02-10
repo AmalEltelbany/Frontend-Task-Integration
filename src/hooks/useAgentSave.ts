@@ -1,12 +1,13 @@
 import { useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { agents } from "@/lib/api";
 import type { AgentData, Agent } from "@/types/agent";
-import { toast } from "sonner";
+import { useToast } from "./useToast";
 
 export function useAgentSave() {
   const [agentId, setAgentId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const saveAgent = useCallback(
     async (data: AgentData) => {
@@ -17,17 +18,18 @@ export function useAgentSave() {
         let savedAgent: Agent;
 
         if (agentId) {
-          savedAgent = await api.updateAgent(agentId, data);
+          savedAgent = await agents.update(agentId, data);
           toast.success("Agent updated successfully!");
         } else {
-          savedAgent = await api.createAgent(data);
+          savedAgent = await agents.create(data);
           setAgentId(savedAgent.id);
           toast.success("Agent created successfully!");
         }
 
         return savedAgent;
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Failed to save agent";
+        const errorMsg =
+          err instanceof Error ? err.message : "Failed to save agent";
         setError(errorMsg);
         toast.error(errorMsg);
         throw err;
@@ -35,7 +37,7 @@ export function useAgentSave() {
         setIsSaving(false);
       }
     },
-    [agentId],
+    [agentId, toast],
   );
 
   return {

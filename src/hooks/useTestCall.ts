@@ -1,18 +1,19 @@
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { agents } from "@/lib/api";
 import type { TestCallData } from "@/types/agent";
-import { toast } from "sonner";
+import { useToast } from "./useToast";
 
 export function useTestCall() {
   const [isTesting, setIsTesting] = useState(false);
+  const toast = useToast();
 
   const startTestCall = async (agentId: string, data: TestCallData) => {
     try {
       setIsTesting(true);
-      const result = await api.testCall(agentId, data);
-      toast.success("Test call initiated successfully!", {
-        description: `Call ID: ${result.callId}`,
-      });
+      const result = await agents.testCall(agentId, data);
+
+      toast.success("Test call initiated successfully!", "You will receive a call shortly.");
+
       return result;
     } catch (error) {
       const message =

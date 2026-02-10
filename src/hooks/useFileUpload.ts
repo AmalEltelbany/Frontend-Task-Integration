@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { uploads } from "@/lib/api";
 import type { UploadedFile } from "@/types/agent";
 
 const ACCEPTED_TYPES = [
@@ -24,14 +24,18 @@ export function useFileUpload() {
         ),
       );
 
-      const { key, signedUrl } = await api.getUploadUrl();
-      await api.uploadToSignedUrl(signedUrl, file, (progress) => {
+      // Step 1: Get upload URL
+      const { key, signedUrl } = await uploads.getUploadUrl();
+
+      // Step 2: Upload file with progress tracking
+      await uploads.upload(signedUrl, file, (progress) => {
         setUploadedFiles((prev) =>
           prev.map((f, i) => (i === index ? { ...f, progress } : f)),
         );
       });
 
-      const attachment = await api.createAttachment({
+      // Step 3: Register attachment
+      const attachment = await uploads.register({
         key,
         fileName: file.name,
         fileSize: file.size,
@@ -86,7 +90,6 @@ export function useFileUpload() {
       setUploadedFiles((prev) => {
         const updated = [...prev, ...newFiles];
 
-        // Start uploading each file immediately
         newFiles.forEach((_, idx) => {
           const actualIndex = prev.length + idx;
           uploadFile(updated[actualIndex].file, actualIndex);
@@ -121,7 +124,6 @@ export function useFileUpload() {
     [handleFiles],
   );
 
-  // Get list of completed attachment IDs for saving
   const getAttachmentIds = useCallback(() => {
     return uploadedFiles
       .filter((f) => f.status === "completed" && f.attachmentId)

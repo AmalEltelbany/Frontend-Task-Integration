@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { dropdowns } from "@/lib/api";
 import type { Language, Voice, Prompt, Model } from "@/types/agent";
 
 export function useAgentForm() {
@@ -14,10 +14,10 @@ export function useAgentForm() {
     async function fetchDropdowns() {
       try {
         const [langData, voiceData, promptData, modelData] = await Promise.all([
-          api.getLanguages(),
-          api.getVoices(),
-          api.getPrompts(),
-          api.getModels(),
+          dropdowns.getLanguages(),
+          dropdowns.getVoices(),
+          dropdowns.getPrompts(),
+          dropdowns.getModels(),
         ]);
 
         setLanguages(langData);
